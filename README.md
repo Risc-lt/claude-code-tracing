@@ -278,7 +278,7 @@ cp path/to/traces.jsonl ./visualizer/logs/
 The visualizer container starts an HTTP server on port 8080. After collecting traces, run `visualize.sh` with `--analysis-only` to trigger conversion and analysis:
 
 ```bash
-docker exec visualizer ./visualizer/visualize.sh /app/logs/traces.jsonl --analysis-only --tokenizer gpt2
+docker exec visualizer ./visualizer/visualize.sh /app/logs/traces_converted.jsonl --analysis-only --tokenizer gpt2
 ```
 
 Then open `http://<server-ip>:8080/visualizer/index.html?file=/logs/traces.jsonl` in your browser.

@@ -244,5 +244,6 @@ docker compose down -v       # also delete trace and workspace volumes
 
 - [Claude Code](https://claude.ai/code) by [Anthropic](https://www.anthropic.com/) — the AI coding agent whose API calls this project intercepts and traces.
 - [LiteLLM](https://github.com/BerriAI/litellm) by BerriAI — the LLM proxy that makes transparent request interception possible.
+- [LMCache](https://github.com/LMCache/LMCache) — the KV cache engine for large language models. Special thanks to the original author [Kobe Chen](https://github.com/KobeGong) for his blog on [claude-code-tracing](https://github.com/kobe0938/claude-code-tracing)
 - [SWE-bench Pro](https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro) by Scale AI and [SWE-bench](https://www.swebench.com/) by Princeton NLP — the software engineering benchmarks used in our tracing experiments.
-- [Docker](https://www.docker.com/) — for the containerized deployment setup.
+

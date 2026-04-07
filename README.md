@@ -230,15 +230,107 @@ docker compose down          # containers stop, volumes persist
 docker compose down -v       # also delete trace and workspace volumes
 ```
 
-#### Tips
+## Visualization
 
-- **Disk**: Traces grow fast (60–400+ LLM calls per task). Periodically copy and truncate:
-  ```bash
-  docker cp claude-code:/data/traces.jsonl "./traces_$(date +%Y%m%d).jsonl"
-  docker exec claude-code truncate -s 0 /data/traces.jsonl
-  ```
-- **Debug proxy**: `docker compose logs -f litellm-proxy`
-- **Proxy accessible from host**: The proxy is exposed on port 4000, so you can also point a local Claude Code at `http://<dgx-ip>:4000` if needed.
+The visualizer analyzes prefix caching and substring matching hit rates across LLM request sequences, and provides an interactive web UI for exploring token reuse patterns.
+
+#### File structure
+
+```
+visualizer/
+├── prefix_analysis.py              # Core analysis engine
+├── merge_matches.py                # Merge overlapping/adjacent matches
+├── jsonl_to_csv.py                 # Export matches to CSV
+├── combine_jsonl.py                # Combine multiple JSONL files
+├── requirements.txt                # Python dependencies
+├── run_analysis.sh                 # Batch analysis script
+└── visualizer/
+    ├── visualize.sh                # Main entry point
+    ├── convert_trace.py            # Trace format converter
+    └── index.html                  # Interactive web visualizer
+```
+
+#### Install dependencies
+
+```bash
+pip install -r visualizer/requirements.txt
+```
+
+This installs `transformers`, `matplotlib`, `tqdm`, and `torch`.
+
+#### Quick start
+
+```bash
+# Copy your trace file into the visualizer directory (optional)
+mv path/to/traces.jsonl ./visualizer/
+
+# Run analysis and open the web visualizer
+./visualizer/visualizer/visualize.sh ./visualizer/traces.jsonl --tokenizer gpt2
+```
+
+The script will:
+1. Auto-detect and convert the trace format if needed
+2. Run prefix & substring matching analysis via `prefix_analysis.py`
+3. Generate a cache hit rate plot (`*_cache_hit_rate.png`) and match log (`*_matches.jsonl`)
+4. Start a local HTTP server and open the interactive visualizer in your browser
+
+#### Options
+
+| Flag | Description | Default |
+|---|---|---|
+| `--tokenizer NAME` | HuggingFace tokenizer model | `meta-llama/Llama-3.1-8B` |
+| `--pool-sizes S1 S2 ...` | KV cache pool sizes in GB to test | `unlimited` |
+| `--tokens-per-gb N` | Tokens per GB conversion factor | `8200` |
+| `--output-dir DIR` | Directory for analysis outputs | same as input file |
+| `--no-analysis` | Skip analysis, only open the visualizer | — |
+
+**Example with multiple pool sizes:**
+
+```bash
+./visualizer/visualizer/visualize.sh traces.jsonl \
+  --tokenizer gpt2 \
+  --pool-sizes 1 2 4 8 unlimited \
+  --output-dir ./results
+```
+
+#### Running analysis standalone
+
+You can also run the analysis engine directly without the web visualizer:
+
+```bash
+python3 visualizer/prefix_analysis.py \
+  -i traces.jsonl \
+  -o cache_hit_rate.png \
+  --log-matches matches.jsonl \
+  --tokenizer gpt2 \
+  --pool-sizes 1 4 unlimited
+```
+
+#### Post-processing matches
+
+```bash
+# Merge overlapping/adjacent matches
+python3 visualizer/merge_matches.py -i matches.jsonl -o merged.jsonl
+
+# Export to CSV
+python3 visualizer/jsonl_to_csv.py -i merged.jsonl -o matches.csv
+```
+
+#### Supported trace formats
+
+The visualizer auto-detects and converts multiple trace formats:
+
+- **Unified**: `{"input": str, "output": str, ...}` (no conversion needed)
+- **OpenAI-style**: `{"messages": [...], "response": {"choices": [...]}}`
+- **Claude Code raw**: `{"input_raw": {"messages": [...], "system": [...], "tools": [...]}, ...}`
+- **raw_request**: `{"raw_request": {"messages": [...], "system": [...], "tools": [...]}}`
+
+#### Web visualizer features
+
+- **Heatmap** — visualize token frequency and reuse across requests
+- **Match navigation** — jump between detected substring matches with source arrows
+- **Search** — find text patterns across all traces
+- **Dark / Light theme** toggle
 
 ## Acknowledgement
 

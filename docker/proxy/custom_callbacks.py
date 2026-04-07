@@ -1,7 +1,7 @@
 from litellm.integrations.custom_logger import CustomLogger
 import json, datetime, os
 
-LOG_FILE = "/data/traces.jsonl"
+LOG_FILE = "/logs/traces.jsonl"
 
 
 def _safe_dump(obj):

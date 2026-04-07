@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir 'litellm[proxy]'
 COPY config.yaml .
 COPY custom_callbacks.py .
 
-RUN mkdir -p /data
+RUN mkdir -p /logs
 
 EXPOSE 4000
 

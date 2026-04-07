@@ -147,7 +147,7 @@ head -1 traces.jsonl | python3 -m json.tool
 
 ## 2.Docker Setup (for DGX Spark / cloud servers)
 
-If you can only run Docker on your server, use the provided `docker/` setup which packages everything into two containers.
+If you can only run Docker on your server, use the provided `docker/` setup which packages everything into three containers.
 
 #### File structure
 
@@ -159,7 +159,9 @@ docker/
 │   ├── Dockerfile
 │   ├── config.yaml
 │   └── custom_callbacks.py
-└── claude/
+├── claude/
+│   └── Dockerfile
+└── visualizer/
     └── Dockerfile
 ```
 
@@ -177,9 +179,10 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-This starts two containers:
-- **`litellm-proxy`** — the LiteLLM proxy on port 4000, logging to `/data/traces.jsonl`
+This starts three containers:
+- **`litellm-proxy`** — the LiteLLM proxy on port 4000, logging to `/logs/traces.jsonl`
 - **`claude-code`** — a container with Claude Code CLI pre-installed, already pointed at the proxy
+- **`visualizer`** — the trace visualizer with web UI on port 8080
 
 #### 2.3. Run Claude Code
 
@@ -210,24 +213,69 @@ docker exec -it -w /workspace/repo claude-code claude
 
 #### 2.5. Read traces
 
-Traces are written to a shared Docker volume. Read them from either container:
+Traces are written to `visualizer/logs/` on the host, bind-mounted at `/logs` across all containers:
 
 ```bash
 # From the claude container
-docker exec claude-code cat /data/traces.jsonl
+docker exec claude-code cat /logs/traces.jsonl
 
 # Or copy to your host
-docker cp claude-code:/data/traces.jsonl ./traces.jsonl
+docker cp claude-code:/logs/traces.jsonl ./traces.jsonl
 
 # Count logged calls
-docker exec claude-code wc -l /data/traces.jsonl
+docker exec claude-code wc -l /logs/traces.jsonl
 ```
 
-#### 2.6. Stop
+#### 2.6. Visualize traces
+
+The visualizer container shares the `traces` volume (mounted at `/app/logs`) and serves a web UI on port 8080. Since `/app/logs` is under the HTTP server root (`/app`), the web UI can directly render trace files.
+
+**Run analysis:**
+
+```bash
+docker exec visualizer python3 prefix_analysis.py \
+  -i /app/logs/traces.jsonl \
+  -o /app/logs/cache_hit_rate.png \
+  --log-matches /app/logs/matches.jsonl \
+  --tokenizer gpt2
+```
+
+**Open the web visualizer:**
+
+Visit `http://localhost:8080/visualizer/index.html?file=/logs/traces.jsonl` in your browser.
+
+If the traces need format conversion first:
+
+```bash
+docker exec visualizer python3 visualizer/convert_trace.py \
+  -i /app/logs/traces.jsonl \
+  -o /app/logs/traces_converted.jsonl
+```
+
+Then open `http://localhost:8080/visualizer/index.html?file=/logs/traces_converted.jsonl`.
+
+**Post-process matches:**
+
+```bash
+# Merge overlapping matches
+docker exec visualizer python3 merge_matches.py \
+  -i /app/logs/matches.jsonl \
+  -o /app/logs/merged.jsonl
+
+# Export to CSV
+docker exec visualizer python3 jsonl_to_csv.py \
+  -i /app/logs/merged.jsonl \
+  -o /app/logs/matches.csv
+
+# Copy results to host
+docker cp visualizer:/app/logs/ ./results/
+```
+
+#### 2.7. Stop
 
 ```bash
 docker compose down          # containers stop, volumes persist
-docker compose down -v       # also delete trace and workspace volumes
+docker compose down -v       # also delete workspace volume (traces persist in visualizer/logs/)
 ```
 
 ## Visualization

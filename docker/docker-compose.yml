@@ -8,7 +8,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-my-litellm-key}
     volumes:
-      - traces:/data
+      - ../visualizer/logs:/logs
     restart: unless-stopped
 
   claude:
@@ -19,12 +19,23 @@ services:
       - ANTHROPIC_AUTH_TOKEN=${LITELLM_MASTER_KEY:-sk-my-litellm-key}
     volumes:
       - workspace:/workspace
-      - traces:/data        # shared volume so you can read traces from here too
+      - ../visualizer/logs:/logs
     depends_on:
       - litellm-proxy
     stdin_open: true         # needed for interactive claude sessions
     tty: true
 
+  visualizer:
+    build:
+      context: ..
+      dockerfile: docker/visualizer/Dockerfile
+    container_name: visualizer
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../visualizer/logs:/app/logs
+    depends_on:
+      - litellm-proxy
+
 volumes:
-  traces:       # persists traces.jsonl across restarts
   workspace:    # persists your working repo

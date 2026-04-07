@@ -226,52 +226,7 @@ docker cp claude-code:/logs/traces.jsonl ./traces.jsonl
 docker exec claude-code wc -l /logs/traces.jsonl
 ```
 
-#### 2.6. Visualize traces
-
-The visualizer container shares the `traces` volume (mounted at `/app/logs`) and serves a web UI on port 8080. Since `/app/logs` is under the HTTP server root (`/app`), the web UI can directly render trace files.
-
-**Run analysis:**
-
-```bash
-docker exec visualizer python3 prefix_analysis.py \
-  -i /app/logs/traces.jsonl \
-  -o /app/logs/cache_hit_rate.png \
-  --log-matches /app/logs/matches.jsonl \
-  --tokenizer gpt2
-```
-
-**Open the web visualizer:**
-
-Visit `http://localhost:8080/visualizer/index.html?file=/logs/traces.jsonl` in your browser.
-
-If the traces need format conversion first:
-
-```bash
-docker exec visualizer python3 visualizer/convert_trace.py \
-  -i /app/logs/traces.jsonl \
-  -o /app/logs/traces_converted.jsonl
-```
-
-Then open `http://localhost:8080/visualizer/index.html?file=/logs/traces_converted.jsonl`.
-
-**Post-process matches:**
-
-```bash
-# Merge overlapping matches
-docker exec visualizer python3 merge_matches.py \
-  -i /app/logs/matches.jsonl \
-  -o /app/logs/merged.jsonl
-
-# Export to CSV
-docker exec visualizer python3 jsonl_to_csv.py \
-  -i /app/logs/merged.jsonl \
-  -o /app/logs/matches.csv
-
-# Copy results to host
-docker cp visualizer:/app/logs/ ./results/
-```
-
-#### 2.7. Stop
+#### 2.6. Stop
 
 ```bash
 docker compose down          # containers stop, volumes persist
@@ -282,10 +237,13 @@ docker compose down -v       # also delete workspace volume (traces persist in v
 
 The visualizer analyzes prefix caching and substring matching hit rates across LLM request sequences, and provides an interactive web UI for exploring token reuse patterns.
 
+Trace files are stored in `visualizer/logs/`. In the Docker setup this directory is bind-mounted to all three containers; for local usage, copy your trace files there manually.
+
 #### File structure
 
 ```
 visualizer/
+├── logs/                           # Trace files go here
 ├── prefix_analysis.py              # Core analysis engine
 ├── merge_matches.py                # Merge overlapping/adjacent matches
 ├── jsonl_to_csv.py                 # Export matches to CSV
@@ -298,29 +256,38 @@ visualizer/
     └── index.html                  # Interactive web visualizer
 ```
 
-#### Install dependencies
+#### Install dependencies (local only)
 
 ```bash
 pip install -r visualizer/requirements.txt
 ```
 
-This installs `transformers`, `matplotlib`, `tqdm`, and `torch`.
+This installs `transformers`, `matplotlib`, `tqdm`, and `torch`. Docker users can skip this — the visualizer container has dependencies pre-installed.
 
 #### Quick start
 
-```bash
-# Copy your trace file into the visualizer directory (optional)
-mv path/to/traces.jsonl ./visualizer/
+**Local:**
 
-# Run analysis and open the web visualizer
-./visualizer/visualizer/visualize.sh ./visualizer/traces.jsonl --tokenizer gpt2
+```bash
+cp path/to/traces.jsonl ./visualizer/logs/
+./visualizer/visualizer/visualize.sh ./visualizer/logs/traces.jsonl --tokenizer gpt2
 ```
 
-The script will:
+**Docker:**
+
+The visualizer container starts an HTTP server on port 8080. After collecting traces, run `visualize.sh` with `--analysis-only` to trigger conversion and analysis:
+
+```bash
+docker exec visualizer ./visualizer/visualize.sh /app/logs/traces.jsonl --analysis-only --tokenizer gpt2
+```
+
+Then open `http://<server-ip>:8080/visualizer/index.html?file=/logs/traces.jsonl` in your browser.
+
+The `visualize.sh` script will:
 1. Auto-detect and convert the trace format if needed
 2. Run prefix & substring matching analysis via `prefix_analysis.py`
 3. Generate a cache hit rate plot (`*_cache_hit_rate.png`) and match log (`*_matches.jsonl`)
-4. Start a local HTTP server and open the interactive visualizer in your browser
+4. (Local only) Start a local HTTP server and open the visualizer in your browser
 
 #### Options
 
@@ -331,25 +298,29 @@ The script will:
 | `--tokens-per-gb N` | Tokens per GB conversion factor | `8200` |
 | `--output-dir DIR` | Directory for analysis outputs | same as input file |
 | `--no-analysis` | Skip analysis, only open the visualizer | — |
+| `--analysis-only` | Run conversion + analysis, skip server and browser | — |
 
 **Example with multiple pool sizes:**
 
 ```bash
-./visualizer/visualizer/visualize.sh traces.jsonl \
+# Local
+./visualizer/visualizer/visualize.sh visualizer/logs/traces.jsonl \
   --tokenizer gpt2 \
   --pool-sizes 1 2 4 8 unlimited \
   --output-dir ./results
+
+# Docker
+docker exec visualizer ./visualizer/visualize.sh /app/logs/traces.jsonl \
+  --analysis-only --tokenizer gpt2 --pool-sizes 1 2 4 8 unlimited
 ```
 
 #### Running analysis standalone
 
-You can also run the analysis engine directly without the web visualizer:
-
 ```bash
 python3 visualizer/prefix_analysis.py \
-  -i traces.jsonl \
-  -o cache_hit_rate.png \
-  --log-matches matches.jsonl \
+  -i visualizer/logs/traces.jsonl \
+  -o visualizer/logs/cache_hit_rate.png \
+  --log-matches visualizer/logs/matches.jsonl \
   --tokenizer gpt2 \
   --pool-sizes 1 4 unlimited
 ```
@@ -358,10 +329,10 @@ python3 visualizer/prefix_analysis.py \
 
 ```bash
 # Merge overlapping/adjacent matches
-python3 visualizer/merge_matches.py -i matches.jsonl -o merged.jsonl
+python3 visualizer/merge_matches.py -i visualizer/logs/matches.jsonl -o visualizer/logs/merged.jsonl
 
 # Export to CSV
-python3 visualizer/jsonl_to_csv.py -i merged.jsonl -o matches.csv
+python3 visualizer/jsonl_to_csv.py -i visualizer/logs/merged.jsonl -o visualizer/logs/matches.csv
 ```
 
 #### Supported trace formats

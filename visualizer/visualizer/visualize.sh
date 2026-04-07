@@ -5,10 +5,11 @@
 # in the browser with the data auto-loaded.
 #
 # Options:
-#   --no-analysis     Skip analysis, only open the visualizer
-#   --tokenizer NAME  HuggingFace tokenizer (default: meta-llama/Llama-3.1-8B)
-#   --pool-sizes ...  Pool sizes in GB (e.g., 1 2 4 unlimited)
-#   --output-dir DIR  Directory for analysis outputs (default: same as input)
+#   --no-analysis      Skip analysis, only open the visualizer
+#   --analysis-only    Run conversion + analysis, skip server and browser
+#   --tokenizer NAME   HuggingFace tokenizer (default: meta-llama/Llama-3.1-8B)
+#   --pool-sizes ...   Pool sizes in GB (e.g., 1 2 4 unlimited)
+#   --output-dir DIR   Directory for analysis outputs (default: same as input)
 
 set -e
 
@@ -18,6 +19,7 @@ PORT="${PORT:-8080}"
 
 INPUT_FILE=""
 NO_ANALYSIS=false
+ANALYSIS_ONLY=false
 EXTRA_ARGS=()
 OUTPUT_DIR=""
 
@@ -26,6 +28,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-analysis)
             NO_ANALYSIS=true; shift ;;
+        --analysis-only)
+            ANALYSIS_ONLY=true; shift ;;
         --output-dir)
             OUTPUT_DIR="$2"; shift 2 ;;
         --tokenizer|--pool-sizes|--tokens-per-gb)
@@ -105,13 +109,18 @@ with open('$ABS_INPUT') as f:
     URL="${URL}?file=/$REL_PATH"
 fi
 
+if [ "$ANALYSIS_ONLY" = true ]; then
+    echo "=== Analysis complete ==="
+    exit 0
+fi
+
 echo "=== Starting visualizer ==="
 echo "Server on port $PORT..."
 echo "Opening: $URL"
 
 # Start HTTP server in background from repo root
 cd "$REPO_ROOT"
-python3 -m http.server "$PORT" --bind 127.0.0.1 &>/dev/null &
+python3 -m http.server "$PORT" --bind "${BIND:-127.0.0.1}" &>/dev/null &
 SERVER_PID=$!
 
 # Open browser

@@ -36,6 +36,7 @@ services:
       - ../visualizer/logs:/app/logs
     depends_on:
       - litellm-proxy
+    restart: unless-stopped
 
 volumes:
   workspace:    # persists your working repo

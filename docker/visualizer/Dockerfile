@@ -9,10 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy visualizer source code
 COPY visualizer/ .
 
-RUN chmod +x /app/visualizer/visualize.sh
-
-# Trace files are mounted at /app/logs via docker-compose
-RUN mkdir -p /app/logs
+RUN chmod +x /app/visualizer/visualize.sh \
+    && mkdir -p /app/logs
 
 EXPOSE 8080
 

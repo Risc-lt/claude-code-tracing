@@ -10,7 +10,9 @@ Intercept and log all LLM API calls made by Claude Code using a LiteLLM proxy wi
 
 ## Setup
 
-### 1. Create project and install dependencies
+### 1. Local setup
+
+#### 1.1. Create project and install dependencies
 
 ```bash
 mkdir ~/claude-code-tracing && cd ~/claude-code-tracing
@@ -19,7 +21,7 @@ source .venv/bin/activate
 pip install 'litellm[proxy]'
 ```
 
-### 2. Create `custom_callbacks.py`
+#### 1.2. Create `custom_callbacks.py`
 
 ```python
 from litellm.integrations.custom_logger import CustomLogger
@@ -65,7 +67,7 @@ class JSONLLogger(CustomLogger):
 proxy_handler_instance = JSONLLogger()
 ```
 
-### 3. Create `config.yaml`
+#### 1.3. Create `config.yaml`
 
 ```yaml
 model_list:
@@ -90,14 +92,14 @@ litellm_settings:
   callbacks: custom_callbacks.proxy_handler_instance
 ```
 
-### 4. Set environment variables
+#### 1.4. Set environment variables
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 export LITELLM_MASTER_KEY="sk-my-litellm-key"  # any string you choose
 ```
 
-### 5. Start the proxy
+#### 1.5. Start the proxy
 
 ```bash
 cd ~/claude-code-tracing
@@ -105,7 +107,7 @@ litellm --config config.yaml
 # Proxy runs on http://0.0.0.0:4000
 ```
 
-### 6. Point Claude Code at the proxy
+#### 1.6. Point Claude Code at the proxy
 
 In a separate terminal:
 
@@ -117,7 +119,7 @@ claude
 
 All Claude Code requests now flow through the proxy and are logged to `traces.jsonl`.
 
-## What Gets Captured
+#### What Gets Captured
 
 Each line in `traces.jsonl` is a JSON object containing:
 
@@ -133,7 +135,7 @@ Each line in `traces.jsonl` is a JSON object containing:
 | `error` | Error message (failure entries only) |
 | `status` | Set to `"failure"` for failed requests |
 
-## Verify
+#### Verify
 
 ```bash
 # Check number of logged calls
@@ -143,11 +145,11 @@ wc -l traces.jsonl
 head -1 traces.jsonl | python3 -m json.tool
 ```
 
-## Docker Setup (for DGX Spark / cloud servers)
+## 2.Docker Setup (for DGX Spark / cloud servers)
 
 If you can only run Docker on your server, use the provided `docker/` setup which packages everything into two containers.
 
-### File structure
+#### File structure
 
 ```
 docker/
@@ -161,7 +163,7 @@ docker/
     └── Dockerfile
 ```
 
-### 1. Configure your API key
+#### 2.1. Configure your API key
 
 ```bash
 cd docker/
@@ -169,7 +171,7 @@ cp .env.example .env
 # Edit .env and set your real ANTHROPIC_API_KEY
 ```
 
-### 2. Build and start
+#### 2.2. Build and start
 
 ```bash
 docker compose up -d --build
@@ -179,31 +181,34 @@ This starts two containers:
 - **`litellm-proxy`** — the LiteLLM proxy on port 4000, logging to `/data/traces.jsonl`
 - **`claude-code`** — a container with Claude Code CLI pre-installed, already pointed at the proxy
 
-### 3. Run Claude Code
+#### 2.3. Run Claude Code
 
 **Interactive mode:**
+
 ```bash
 docker exec -it claude-code claude
 ```
 
 **Headless mode (for automation):**
+
 ```bash
 docker exec claude-code claude -p "your prompt here"
 ```
 
 **Headless + Yolo (fully autonomous):**
+
 ```bash
 docker exec claude-code claude --dangerously-skip-permissions -p "your prompt here"
 ```
 
-### 4. Clone a repo into the workspace
+#### 2.4. Clone a repo into the workspace
 
 ```bash
 docker exec claude-code git clone https://github.com/some/repo.git /workspace/repo
 docker exec -it -w /workspace/repo claude-code claude
 ```
 
-### 5. Read traces
+#### 2.5. Read traces
 
 Traces are written to a shared Docker volume. Read them from either container:
 
@@ -218,14 +223,14 @@ docker cp claude-code:/data/traces.jsonl ./traces.jsonl
 docker exec claude-code wc -l /data/traces.jsonl
 ```
 
-### 6. Stop
+#### 2.6. Stop
 
 ```bash
 docker compose down          # containers stop, volumes persist
 docker compose down -v       # also delete trace and workspace volumes
 ```
 
-### Tips
+#### Tips
 
 - **Disk**: Traces grow fast (60–400+ LLM calls per task). Periodically copy and truncate:
   ```bash
@@ -235,30 +240,9 @@ docker compose down -v       # also delete trace and workspace volumes
 - **Debug proxy**: `docker compose logs -f litellm-proxy`
 - **Proxy accessible from host**: The proxy is exposed on port 4000, so you can also point a local Claude Code at `http://<dgx-ip>:4000` if needed.
 
-## Bare-Metal Cloud Server Tips
+## Acknowledgement
 
-If not using Docker:
-
-- **Remote access**: Replace `0.0.0.0` with your server's IP/hostname and open port 4000 in your firewall.
-- **Persistent proxy**: Run in `screen` or `tmux` so it survives SSH disconnect.
-  ```bash
-  screen -S litellm
-  litellm --config config.yaml
-  # Ctrl+A, D to detach
-  ```
-- **Disk usage**: The JSONL file grows fast (60–400+ calls per task). Monitor and rotate as needed.
-- **Debug mode**: For verbose proxy logs, run with:
-  ```bash
-  litellm --config config.yaml --detailed_debug 2>&1 | tee litellm_full_log.txt
-  ```
-
-## Approaches That Did NOT Work
-
-For reference, the following were tried and failed before arriving at this solution:
-
-- **claude-trace** — did not work
-- **LangSmith** — did not work
-- **claude-code-proxy** (badlogic/lemmy) — did not work
-- **LiteLLM + Langfuse** — version mismatch (`sdk_integration` arg error)
-- **LiteLLM `json_logger` callback** — produced no output
-- **MLflow** (`mlflow autolog claude`) — captured no input/output
+- [Claude Code](https://claude.ai/code) by [Anthropic](https://www.anthropic.com/) — the AI coding agent whose API calls this project intercepts and traces.
+- [LiteLLM](https://github.com/BerriAI/litellm) by BerriAI — the LLM proxy that makes transparent request interception possible.
+- [SWE-bench Pro](https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro) by Scale AI and [SWE-bench](https://www.swebench.com/) by Princeton NLP — the software engineering benchmarks used in our tracing experiments.
+- [Docker](https://www.docker.com/) — for the containerized deployment setup.

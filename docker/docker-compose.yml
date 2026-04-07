@@ -1,0 +1,30 @@
+services:
+  litellm-proxy:
+    build: ./proxy
+    container_name: litellm-proxy
+    ports:
+      - "4000:4000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-my-litellm-key}
+    volumes:
+      - traces:/data
+    restart: unless-stopped
+
+  claude:
+    build: ./claude
+    container_name: claude-code
+    environment:
+      - ANTHROPIC_BASE_URL=http://litellm-proxy:4000
+      - ANTHROPIC_AUTH_TOKEN=${LITELLM_MASTER_KEY:-sk-my-litellm-key}
+    volumes:
+      - workspace:/workspace
+      - traces:/data        # shared volume so you can read traces from here too
+    depends_on:
+      - litellm-proxy
+    stdin_open: true         # needed for interactive claude sessions
+    tty: true
+
+volumes:
+  traces:       # persists traces.jsonl across restarts
+  workspace:    # persists your working repo

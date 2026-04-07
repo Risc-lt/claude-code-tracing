@@ -3,6 +3,21 @@ import json, datetime, os
 
 LOG_FILE = "/data/traces.jsonl"
 
+
+def _safe_dump(obj):
+    """Serialize obj to a JSON-safe dict, handling circular references."""
+    if hasattr(obj, "model_dump"):
+        try:
+            return obj.model_dump(mode="json")
+        except Exception:
+            pass
+    try:
+        json.dumps(obj, default=str)
+        return obj
+    except (ValueError, TypeError):
+        return str(obj)
+
+
 class JSONLLogger(CustomLogger):
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         try:
@@ -10,7 +25,7 @@ class JSONLLogger(CustomLogger):
                 "timestamp": datetime.datetime.now().isoformat(),
                 "model": kwargs.get("model", ""),
                 "messages": kwargs.get("messages", []),
-                "response": response_obj.model_dump() if hasattr(response_obj, "model_dump") else str(response_obj),
+                "response": _safe_dump(response_obj),
                 "start_time": str(start_time),
                 "end_time": str(end_time),
                 "input_tokens": response_obj.usage.prompt_tokens if hasattr(response_obj, "usage") and response_obj.usage else None,
@@ -18,7 +33,7 @@ class JSONLLogger(CustomLogger):
             }
             complete_input = kwargs.get("additional_args", {}).get("complete_input_dict", None)
             if complete_input:
-                entry["raw_request"] = complete_input
+                entry["raw_request"] = _safe_dump(complete_input)
             with open(LOG_FILE, "a") as f:
                 f.write(json.dumps(entry, default=str) + "\n")
         except Exception as e:

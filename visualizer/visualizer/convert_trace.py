@@ -134,12 +134,8 @@ def convert_line(data):
         output_text = extract_output(data.get("output_raw", ""))
         model = model or ir.get("model")
 
-    # Format 2: OpenAI-style (messages + response)
-    elif "messages" in data:
-        input_text = messages_to_string(data["messages"])
-        output_text = extract_output(data.get("response", ""))
-
-    # Format 2b: raw_request (existing parse_traces.py format)
+    # Format 2b: raw_request — preferred over plain messages because it
+    # contains the full request (system prompt, tools, messages).
     elif "raw_request" in data:
         rr = data["raw_request"]
         input_text = messages_to_string(
@@ -147,6 +143,11 @@ def convert_line(data):
             system=rr.get("system"),
             tools=rr.get("tools"),
         )
+        output_text = extract_output(data.get("response", ""))
+
+    # Format 2: OpenAI-style (messages + response), no raw_request
+    elif "messages" in data:
+        input_text = messages_to_string(data["messages"])
         output_text = extract_output(data.get("response", ""))
 
     return {

@@ -138,6 +138,8 @@ def convert_line(data):
     # contains the full request (system prompt, tools, messages).
     elif "raw_request" in data:
         rr = data["raw_request"]
+        if isinstance(rr, str):
+            rr = json.loads(rr)
         input_text = messages_to_string(
             rr.get("messages", []),
             system=rr.get("system"),

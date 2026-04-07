@@ -139,7 +139,11 @@ def convert_line(data):
     elif "raw_request" in data:
         rr = data["raw_request"]
         if isinstance(rr, str):
-            rr = json.loads(rr)
+            try:
+                rr = json.loads(rr)
+            except json.JSONDecodeError:
+                import ast
+                rr = ast.literal_eval(rr)
         input_text = messages_to_string(
             rr.get("messages", []),
             system=rr.get("system"),
